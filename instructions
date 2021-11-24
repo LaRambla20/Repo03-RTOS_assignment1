@@ -1,0 +1,39 @@
+Starting from the exercise with 3 tasks scheduled with Rate Monotonic
+
+
+
+- Create an application with 4 periodic tasks, with period 80ms, 100ms, 200ms, 160ms (the task with the highest priority is called Task1, the one with the lowest priority Task4)
+
+- Create 3 global variables called T1T2, T1T4, T2T3.
+
+- Task1  shall write something into T1T2, Task 2 shall read from it.
+
+- Task1  shall write something into T1T4, Task 4 shall read from it.
+
+- Task2  shall write something into T2T3, Task 3 shall read from it.
+
+-All critical sections shall be protected by semaphores
+
+- Semaphores shall use Priority Ceiling
+
+//print the id of the current task
+//call the function waste_time() 2 times to increase the computational time of the task
+//lock the semaphore mutex1
+// write on the T1T2 shared global variable
+//unlock the semaphore mutex1
+//print the id of the current task
+//thread code for task_1 (used for temporization/timing and synchronization between tasks, and to specify that all threads should run on the same core/processor/CPU)
+// set thread affinity, that is the processor on which threads shall run
+//execute the task at maximum one hundred times... it should be an infinite loop (too dangerous)
+//execute the task1 code
+//check if the task missed a deadline during the i-th execution
+// store in the time_t1 variable the time at the end of the i-th execution of the task
+// if the current time is greater than the next arrival time previously evaluated, increment the number of deadlines missed by the task
+// make the thread sleep until a known given time (that is the beginning of the next period: next_arrival_time[0] in this case)
+// compute the end of the new period for the next iteration (the first iteration of the loop is carried out thanks to the fact that, before the creation of the threads, 
+// the beginning of the second period is evaluated)
+
+// evaluate the Blocking Time related to the critical section z21
+// store in the time_z21_beg variable the time at the beginning of the critical section z21
+// store in the time_z21_end variable the time at the end of the critical section z21
+// store the Blocking Time related to the critical section z21 in the global variable BT_z21_current
