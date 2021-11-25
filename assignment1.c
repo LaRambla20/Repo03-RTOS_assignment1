@@ -7,7 +7,9 @@
 // This script shows one possible solution to this problem.
 
 // Change:
-// - the global constants NINNERLOOP and NOUTERLOOP to change the tasks execution time
+// - the global constants NINNERLOOP and NOUTERLOOP to change the tasks execution time and to make more
+// visible the preemptions of the tasks and the blockings of the tasks due to the semaphores. As a matter of
+// fact this two constants determine an increase of the time spent by tasks while they occupy semapores. 
 // - the global constant NTEST to change the number of times that the tasks are singularly executed in 
 // order to evaluate their Worst Case Execution Time and the Maximum Blocking Times
 
@@ -42,8 +44,8 @@ pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 
-#define INNERLOOP 500 // global constants used in the function: waste_time()
-#define OUTERLOOP 120
+#define INNERLOOP 450 // global constants used in the function: waste_time()
+#define OUTERLOOP 100
 
 #define NPERIODICTASKS 4 // number of periodic tasks
 #define NTASKS NPERIODICTASKS // total number of tasks
@@ -113,8 +115,8 @@ int main()
 	// The computed WCETs and MBTs are just estimates of the real values, since, to obtain them, each task should be executed on its own
 	// for many more times than NTESTS.
 
-    printf("TESTING\n\n");
-    fflush(stdout);
+   printf("\n================================================\nTesting:\n================================================\n");
+	fflush(stdout);;
     
     memset(WCET, 0, NTASKS);
 	memset(MBT, 0, NTASKS);
@@ -142,9 +144,6 @@ int main()
             ET_current= 1000000000*(time_2.tv_sec - time_1.tv_sec) + (time_2.tv_nsec-time_1.tv_nsec); // compute the current Execution Time of the considered task
             if (ET_current > WCET[j]){ // update the Worst Case Execution Time of the considered task if the current Execution Time is higher than the previous WCET stored
                 WCET[j] = ET_current;
-                // if(j==1){
-                //     printf("the new value is: %lf\n", WCET[j]);
-                // }
             }
 
         }
@@ -182,14 +181,22 @@ int main()
 
     }
 
+	printf("\n================================================\n\n");
+	fflush(stdout);
+
 
     for(i = 0; i < NTASKS; i++){
-        printf("\nWorst Case Execution Time [%d]=%f \n", i, WCET[i]);
+        printf("Worst Case Execution Time [%d]=%f \n", i, WCET[i]);
         fflush(stdout);
-		printf("\nMaximum Blocking Time [%d]=%f \n", i, MBT[i]);
-		fflush(stdout);
     }
 
+	printf("\n");
+	fflush(stdout);
+	
+	for(i = 0; i < NTASKS; i++){
+        printf("Maximum Blocking Time [%d]=%f \n", i, MBT[i]);
+		fflush(stdout);
+    }
 
 	memset(U, 0, NTASKS);
 
@@ -207,16 +214,18 @@ int main()
 		//check the sufficient conditions: if they are not satisfied, exit because it means that nothing can be said about the schedulability of the tasks with RM
 		if (U[i] > Ulub[i])
     	{
-      	printf("\n U[%d]=%lf Ulub[%d]=%lf Non schedulable Task Set", i, U[i], i, Ulub[i]);
+      	printf("\nU[%d]=%lf Ulub[%d]=%lf Non schedulable Task Set", i, U[i], i, Ulub[i]);
 		fflush(stdout);
       	return(-1);
     	}
-  		printf("\n U[%d]=%lf Ulub[%d]=%lf Scheduable Task Set", i, U[i], i, Ulub[i]);
+  		printf("\nU[%d]=%lf Ulub[%d]=%lf Scheduable Task Set", i, U[i], i, Ulub[i]);
   		fflush(stdout);
 		
     }
 
-	printf("\n\n");
+	printf("\n");
+	fflush(stdout);
+	printf("\n================================================\nScheduling is starting:\n================================================\n");
 	fflush(stdout);
 	
   	sleep(5);
@@ -300,11 +309,13 @@ int main()
   	pthread_join( thread_id[2], NULL);
     pthread_join( thread_id[3], NULL);
 
+	printf ("\n"); 
+	fflush(stdout);
 
   	// print the number of missing deadlines for each task
   	for (i = 0; i < NTASKS; i++)
     {
-    	printf ("\nMissed Deadlines Task %d=%d", i, missed_deadlines[i]); 
+    	printf ("Missed Deadlines Task %d=%d\n", i, missed_deadlines[i]); 
 		fflush(stdout);
     }
 
@@ -324,23 +335,34 @@ void task1_code()
 	//print the id of the current task
   	printf("\x1b[31m" " 1[ " "\x1b[0m"); fflush(stdout);
 
-	//call the function waste_time() 2 times to increase the computational time of the task
 	int k;
-	for (k = 0; k < 2; k++){
-	waste_time();
-	}
 
 
 	pthread_mutex_lock(&mutex1); //lock the semaphore mutex1
 	T1T2 = 1; // write on the T1T2 shared global variable
+
+	//call the function waste_time() 1 time to increase the computational time of the task
+	for (k = 0; k < 1; k++){
+	waste_time();
+	}
+
 	pthread_mutex_unlock(&mutex1); //unlock the semaphore mutex1
+
 
 	printf("(wT1T2:%d)", 1);
 	fflush(stdout);
 
+
 	pthread_mutex_lock(&mutex2); //lock the semaphore mutex2
 	T1T4 = 1; // write on the T1T4 shared global variable
+
+	//call the function waste_time() 1 time to increase the computational time of the task
+	for (k = 0; k < 1; k++){
+	waste_time();
+	}
+
 	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex2
+
 
 	printf("(wT1T4:%d)", 1);
 	fflush(stdout);
@@ -358,9 +380,9 @@ void *task1( void *ptr)
 	CPU_SET(0, &cset);
 	pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cset); // make the first thread run on the first CPU
 
-   	//execute the task at maximum one hundred times... it should be an infinite loop (too dangerous)
+   	//execute the task at maximum 150 times
   	int i=0;
-  	for (i=0; i < 100; i++)
+  	for (i=0; i < 170; i++)
     {
       	//execute the task1 code
 		task1_code();
@@ -394,11 +416,7 @@ void task2_code()
 	//print the id of the current task
   	printf("\x1b[33m" " 2[ " "\x1b[0m"); fflush(stdout);
 
-	//call the function waste_time() 3 times to increase the computational time of the task
 	int k;
-    for (k = 0; k < 3; k++){
-	waste_time();
-	}
 
 	// evaluate the Blocking Time related to the critical section z21
 	struct timespec time_z21_beg;
@@ -407,6 +425,12 @@ void task2_code()
 	clock_gettime(CLOCK_REALTIME, &time_z21_beg); // store in the time_z21_beg variable the time at the beginning of the critical section z21
 	pthread_mutex_lock(&mutex1); //lock the semaphore mutex1
 	read_value = T1T2; // read from T1T2 shared global variable
+
+	//call the function waste_time() 2 times to increase the computational time of the task
+    for (k = 0; k < 2; k++){
+	waste_time();
+	}
+
 	pthread_mutex_unlock(&mutex1); //unlock the semaphore mutex1
 	clock_gettime(CLOCK_REALTIME, &time_z21_end); // store in the time_z21_end variable the time at the end of the critical section z21
 
@@ -416,9 +440,17 @@ void task2_code()
 	// store the Blocking Time related to the critical section z21 in the global variable BT_z21_current
 	BT_z21_current= 1000000000*(time_z21_end.tv_sec - time_z21_beg.tv_sec) + (time_z21_end.tv_nsec-time_z21_beg.tv_nsec);
 
+
 	pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
 	T2T3 = 2; // write on the T2T3 shared global variable
+
+	//call the function waste_time() 1 time to increase the computational time of the task
+    for (k = 0; k < 1; k++){
+	waste_time();
+	}
+
 	pthread_mutex_unlock(&mutex3); //lock the semaphore mutex3
+
 
 	printf("(wT2T3:%d)", 2);
 	fflush(stdout);
@@ -436,9 +468,9 @@ void *task2( void *ptr )
 	CPU_SET(0, &cset);
 	pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cset);
 
-	//execute the task at maximum one hundred times... it should be an infinite loop (too dangerous)
+	//execute the task at maximum 150 times
 	int i=0;
-  	for (i=0; i < 100; i++)
+  	for (i=0; i < 150; i++)
     {
 		
         //execute the task2 code
@@ -474,20 +506,26 @@ void task3_code()
 	//print the id of the current task
   	printf("\x1b[32m" " 3[ " "\x1b[0m"); fflush(stdout);
 
-	//call the function waste_time() 5 times to increase the computational time of the task
 	int k;
-    for (k = 0; k < 5; k++){
-	waste_time();
-	}
 
 	// evaluate the Blocking Time related to the critical section z31
 	struct timespec time_z31_beg;
 	struct timespec time_z31_end;
 	int read_value;
 	clock_gettime(CLOCK_REALTIME, &time_z31_beg); // store in the time_z31_beg variable the time at the beginning of the critical section z31
+
+
 	pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
 	read_value = T2T3; // read from the T2T3 shared global variable
+
+	//call the function waste_time() 5 times to increase the computational time of the task
+    for (k = 0; k < 5; k++){
+	waste_time();
+	}
+
 	pthread_mutex_unlock(&mutex3); //unlock the semaphore mutex3
+
+
 	clock_gettime(CLOCK_REALTIME, &time_z31_end); // store in the time_z31_end variable the time at the end of the critical section z31
 
 	printf("(rT2T3:%d)", read_value);
@@ -509,7 +547,7 @@ void *task3( void *ptr)
 	CPU_SET(0, &cset);
 	pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cset);
 
-	//execute the task at maximum one hundred times... it should be an infinite loop (too dangerous)
+	//execute the task at maximum 100 times
 	int i=0;
   	for (i=0; i < 100; i++)
     {
@@ -546,20 +584,26 @@ void task4_code()
 	//print the id of the current task
   	printf("\x1b[34m" " 4[ " "\x1b[0m"); fflush(stdout);
 
-	//call the function waste_time() 6 times to increase the computational time of the task
 	int k;
-    for (k = 0; k < 6; k++){
-	waste_time();
-	}
 
 	// evaluate the Blocking Time related to the critical section z41
 	struct timespec time_z41_beg;
 	struct timespec time_z41_end; 
 	int read_value;
 	clock_gettime(CLOCK_REALTIME, &time_z41_beg); // store in the time_z41_beg variable the time at the beginning of the critical section z41
+
+
 	pthread_mutex_lock(&mutex2); //lock the semaphore mutex2
 	read_value = T1T4; //write on the T1T4 shared global variable
+
+	//call the function waste_time() 6 times to increase the computational time of the task
+    for (k = 0; k < 6; k++){
+	waste_time();
+	}
+
 	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex1
+
+
 	clock_gettime(CLOCK_REALTIME, &time_z41_end); // store in the time_z41_end variable the time at the end of the critical section z41
 
 	printf("(rT1T4:%d)", read_value);
@@ -581,9 +625,9 @@ void *task4( void *ptr)
 	CPU_SET(0, &cset);
 	pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cset);
 
-	//execute the task at maximum one hundred times... it should be an infinite loop (too dangerous)
+	//execute the task at maximum 90 times
 	int i=0;
-  	for (i=0; i < 100; i++)
+  	for (i=0; i < 90; i++)
     {
 
         //execute the task4 code
