@@ -1,17 +1,71 @@
-//compile with: g++ -pthread assignment1.c -o assignment1
-//run with: sudo ./assignment1
+// compile with: g++ -pthread assignment1.c -o assignment1
+// run with: sudo ./assignment1
 
 // The first assignment consists in scheduling four tasks, each of which interacts with one or more 
-// shared global variable. The access to this variables is protected by three semaphores handled with
-// the priority ceiling protocol.
+// shared global variable. In particular:
+// - the variable T1T2 is written by task1 and read by task2 (and protected by mutex1)
+// - the variable T1T4 is written by task1 and read by task4 (and protected by mutex2)
+// - the variable T2T3 is written by task2 and read by task3 (and protected by mutex3)
+// The three semaphores are handled with the priority ceiling protocol.
 // This script shows one possible solution to this problem.
+
+// First of all it is necessary to establish some properties in order to determine the maximum blocking time related 
+// to each task due to the presence of semaphores. As far as the interested critical sections are concerned, six of them
+// can be distinguished:
+// - z11 critical section in which task1 writes on the variable T1T2
+// - z12 critical section in which task1 writes on the variable T1T4
+// - z21 critical section in which task2 reads from the variable T1T2
+// - z22 critical section in which task2 writes on the variable T2T3
+// - z31 critical section in which task3 reads from the variable T2T3
+// - z41 critical section in which task4 reads from the variable T1T4
+// Assuming the absence of nested critical sections, the properties to establish are:
+// - beta_ij: set of critical sections of task_j that can block the higer priority task task_i
+// - beta_i: set of all critical sections of lower priority tasks that can block task_i
+// Regarding the first property, the beta_ijs are:
+// - beta_12 = {z21(for direct blocking)}
+// - beta_13 = {none}
+// - beta_12 = {z41(for direct blocking)}
+// - beta_23 = {z31(for direct blocking)}
+// - beta_24 = {z41(for indirect blocking)}
+// - beta_34 = {z41(for indirect blocking)}
+// Combining the beta_ijs related to a specific task, the following beta_i are obtained:
+// - beta_1 = {z21, z41}
+// - beta_2 = {z31, z41}
+// - beta_3 = {z41}
+// - beta_4 = {none} because there is no other task with a lower priority than task4
+//
+// Based on the previously determined sets, it is now possible to determine the maximum blocking time of each task due to
+// tasks with lower priority. By using the priority ceiling protocol to handle semaphores, the maximum blocking time of the i-th
+// task is nothing more than the longest duration among the durations of critical sections belonging to the set beta_i. This is
+// because the protocol at issue causes every task to be blocked by a lower priority task for at maximum one critical section.
+// The maximum blocking times related to the tasks are then:
+// - MBT_1 = max{duration(z21), duration(z41)}
+// - MBT_2 = max{duration(z31), duration(z41)}
+// - MBT_3 = duration(z41)
+// - MBT_4 = 0
 
 // Change:
 // - the global constants NINNERLOOP and NOUTERLOOP to change the tasks execution time and to make more
 // visible the preemptions of the tasks and the blockings of the tasks due to the semaphores. As a matter of
-// fact this two constants determine an increase of the time spent by tasks while they occupy semapores. 
+// fact this two constants determine an increase of the time spent by tasks while they occupy semapores.
+// To this end consider also changing the number of times the waste_time() function is called in the task codes. 
 // - the global constant NTEST to change the number of times that the tasks are singularly executed in 
 // order to evaluate their Worst Case Execution Time and the Maximum Blocking Times
+
+// To put the priority ceiling protocol for handling semaphores to the test:
+// 1. Induce a deadlock:
+//    * Uncomment:  
+// 		- from line 414 to line 420
+// 		- line 431
+// 		- from line 516 to line 518
+// 		- line 529
+//    * Comment :
+// 		- from line 315 to line 330
+//    * Reduce the INNERLOOP and OUTERLOOP constants to make the task set schedulable
+//
+// 2. Solve the induced deadlock by considering the priority ceiling protocol:
+//    * Uncomment:
+// 		- from line 315 to line 330
 
 #include <pthread.h>
 #include <stdio.h>
@@ -39,12 +93,12 @@ void *task4( void *);
 // function to waste time (more specifically to increase the tasks computational time)
 void waste_time( );
 
-// initialization of mutexes for protecting the access shared global variables between tasks
+// initialization of mutexes for protecting the access to the global variables shared among the tasks
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 
-#define INNERLOOP 450 // global constants used in the function: waste_time()
+#define INNERLOOP 650 // global constants used in the function: waste_time()
 #define OUTERLOOP 100
 
 #define NPERIODICTASKS 4 // number of periodic tasks
@@ -70,7 +124,7 @@ double Ulub[NTASKS]; // array that stores as doubles the lower-upper-bound Utili
 pthread_attr_t attributes[NTASKS]; // array that stores as pthread_attr_t the attributes related to each task (attributes contain information about the scheduling policy adopted)
 pthread_mutexattr_t mutexattributes; //  variable of type pthread_mutexattr_t that stores the attributes related to the mutexes (mutexes attributes contain information about the protocol adopted to handle them)
 pthread_t thread_id[NTASKS]; // array that stores as pthread_t the ids of the tasks
-struct sched_param parameters[NTASKS]; // array that stores as sched_param structs the parameters related to each task (parameters conntain information about the priority of the tasks)
+struct sched_param parameters[NTASKS]; // array that stores as sched_param structs the parameters related to each task (parameters contain information about the priority of the tasks)
 int missed_deadlines[NTASKS]; // array that stores as ints the number of missed deadlines for the tasks
 
 
@@ -88,13 +142,13 @@ int main()
   	periods[2]= 160000000; //in nanoseconds
     periods[3]= 200000000; //in nanoseconds
 
-	//this is not strictly necessary, but it is convenient to
-	//assign a name to the maximum and the minimum priority in the
-	//system. We call them priomin and priomax.
+
+	// Assign a name to the maximum and the minimum priority in the
+	// system
 
   	struct sched_param priomax; // variable to store the maximum possible priority using the sched_FIFO
   	priomax.sched_priority=sched_get_priority_max(SCHED_FIFO); // function to get the maximum possible priority using the sched_FIFO
-  	struct sched_param priomin; // variable to store the maximum possible priority using the sched_FIFO
+  	struct sched_param priomin; // variable to store the minimu possible priority using the sched_FIFO
   	priomin.sched_priority=sched_get_priority_min(SCHED_FIFO); // function to get the minimum possible priority using the sched_FIFO
 
 	// Check that the main thread is executed with superuser privileges and 
@@ -209,7 +263,7 @@ int main()
 		U[i] = U[i] + MBT[i]/periods[i];
 
 		// compute Ulub up to the i-th task considered
-		Ulub[i] = (i+1)*(pow(2.0,(1.0/(i+1))) -1); // i+1 because, since i is an array index, it starts from 0, so the correspondent task number is i+1
+		Ulub[i] = (i+1)*(pow(2.0,(1.0/(i+1))) -1); // i+1 because, since i is an array index, it starts from 0, so the correspondent number of tasks is i+1
 
 		//check the sufficient conditions: if they are not satisfied, exit because it means that nothing can be said about the schedulability of the tasks with RM
 		if (U[i] > Ulub[i])
@@ -258,7 +312,7 @@ int main()
 	}
 
 
-	// set the attributes of the semaphores in order to specify that they should be handeled with the priority ceiling protocol
+	// set the attributes of the semaphores in order to specify that they should be handled with the priority ceiling protocol
 
 	//initialize the attributes structure of the mutexes
 	pthread_mutexattr_init(&mutexattributes);
@@ -309,7 +363,7 @@ int main()
   	pthread_join( thread_id[2], NULL);
     pthread_join( thread_id[3], NULL);
 
-	printf ("\n"); 
+	printf("\n================================================\n\n");
 	fflush(stdout);
 
   	// print the number of missing deadlines for each task
@@ -318,6 +372,9 @@ int main()
     	printf ("Missed Deadlines Task %d=%d\n", i, missed_deadlines[i]); 
 		fflush(stdout);
     }
+
+	printf("\n================================================\n");
+	fflush(stdout);
 
 	// destroy the attributes of the semaphores previously defined before exiting
 	pthread_mutexattr_destroy(&mutexattributes);
@@ -339,6 +396,7 @@ void task1_code()
 
 
 	pthread_mutex_lock(&mutex1); //lock the semaphore mutex1
+
 	T1T2 = 1; // write on the T1T2 shared global variable
 
 	//call the function waste_time() 1 time to increase the computational time of the task
@@ -348,12 +406,20 @@ void task1_code()
 
 	pthread_mutex_unlock(&mutex1); //unlock the semaphore mutex1
 
-
 	printf("(wT1T2:%d)", 1);
 	fflush(stdout);
 
 
+
+	// // Innested semaphores to induce a deadlock 
+	// pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
+	// waste_time();
+	// waste_time();
+	// waste_time();
+	// waste_time();
+	// waste_time();
 	pthread_mutex_lock(&mutex2); //lock the semaphore mutex2
+
 	T1T4 = 1; // write on the T1T4 shared global variable
 
 	//call the function waste_time() 1 time to increase the computational time of the task
@@ -362,11 +428,13 @@ void task1_code()
 	}
 
 	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex2
-
+	// pthread_mutex_unlock(&mutex3); //unlock the semaphore mutex3
 
 	printf("(wT1T4:%d)", 1);
 	fflush(stdout);
   
+
+
   	//print the id of the current task
   	printf("\x1b[31m" " ]1 " "\x1b[0m"); fflush(stdout);
 }
@@ -380,7 +448,7 @@ void *task1( void *ptr)
 	CPU_SET(0, &cset);
 	pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cset); // make the first thread run on the first CPU
 
-   	//execute the task at maximum 150 times
+   	//execute the task at maximum 170 times
   	int i=0;
   	for (i=0; i < 170; i++)
     {
@@ -418,12 +486,15 @@ void task2_code()
 
 	int k;
 
+
 	// evaluate the Blocking Time related to the critical section z21
 	struct timespec time_z21_beg;
 	struct timespec time_z21_end;
 	int read_value;
+
 	clock_gettime(CLOCK_REALTIME, &time_z21_beg); // store in the time_z21_beg variable the time at the beginning of the critical section z21
 	pthread_mutex_lock(&mutex1); //lock the semaphore mutex1
+
 	read_value = T1T2; // read from T1T2 shared global variable
 
 	//call the function waste_time() 2 times to increase the computational time of the task
@@ -441,7 +512,12 @@ void task2_code()
 	BT_z21_current= 1000000000*(time_z21_end.tv_sec - time_z21_beg.tv_sec) + (time_z21_end.tv_nsec-time_z21_beg.tv_nsec);
 
 
+
+	// // Innested semaphores to induce a deadlock 
+	// pthread_mutex_lock(&mutex2); //lock the semaphore mutex2
+	// waste_time();
 	pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
+
 	T2T3 = 2; // write on the T2T3 shared global variable
 
 	//call the function waste_time() 1 time to increase the computational time of the task
@@ -450,10 +526,12 @@ void task2_code()
 	}
 
 	pthread_mutex_unlock(&mutex3); //lock the semaphore mutex3
-
+	// pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex2
 
 	printf("(wT2T3:%d)", 2);
 	fflush(stdout);
+
+
 
 	//print the id of the current task
   	printf("\x1b[33m" " ]2 " "\x1b[0m"); fflush(stdout);
@@ -508,14 +586,15 @@ void task3_code()
 
 	int k;
 
+
 	// evaluate the Blocking Time related to the critical section z31
 	struct timespec time_z31_beg;
 	struct timespec time_z31_end;
 	int read_value;
+
 	clock_gettime(CLOCK_REALTIME, &time_z31_beg); // store in the time_z31_beg variable the time at the beginning of the critical section z31
-
-
 	pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
+
 	read_value = T2T3; // read from the T2T3 shared global variable
 
 	//call the function waste_time() 5 times to increase the computational time of the task
@@ -524,8 +603,6 @@ void task3_code()
 	}
 
 	pthread_mutex_unlock(&mutex3); //unlock the semaphore mutex3
-
-
 	clock_gettime(CLOCK_REALTIME, &time_z31_end); // store in the time_z31_end variable the time at the end of the critical section z31
 
 	printf("(rT2T3:%d)", read_value);
@@ -533,6 +610,8 @@ void task3_code()
 
 	// store the Blocking Time related to the critical section z31 in the global variable BT_z31_current
 	BT_z31_current= 1000000000*(time_z31_end.tv_sec - time_z31_beg.tv_sec) + (time_z31_end.tv_nsec-time_z31_beg.tv_nsec);
+
+
 
 	//print the id of the current task
   	printf("\x1b[32m" " ]3 " "\x1b[0m"); fflush(stdout);
@@ -586,14 +665,15 @@ void task4_code()
 
 	int k;
 
+
 	// evaluate the Blocking Time related to the critical section z41
 	struct timespec time_z41_beg;
 	struct timespec time_z41_end; 
 	int read_value;
+
 	clock_gettime(CLOCK_REALTIME, &time_z41_beg); // store in the time_z41_beg variable the time at the beginning of the critical section z41
-
-
 	pthread_mutex_lock(&mutex2); //lock the semaphore mutex2
+
 	read_value = T1T4; //write on the T1T4 shared global variable
 
 	//call the function waste_time() 6 times to increase the computational time of the task
@@ -601,9 +681,7 @@ void task4_code()
 	waste_time();
 	}
 
-	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex1
-
-
+	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex2
 	clock_gettime(CLOCK_REALTIME, &time_z41_end); // store in the time_z41_end variable the time at the end of the critical section z41
 
 	printf("(rT1T4:%d)", read_value);
@@ -611,6 +689,8 @@ void task4_code()
 
 	// store the Blocking Time related to the critical section z21 in the global variable BT_z41_current
 	BT_z41_current= 1000000000*(time_z41_end.tv_sec - time_z41_beg.tv_sec) + (time_z41_end.tv_nsec-time_z41_beg.tv_nsec);
+
+
 
 	//print the id of the current task
   	printf("\x1b[34m" " ]4 " "\x1b[0m"); fflush(stdout);

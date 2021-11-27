@@ -354,7 +354,8 @@ void task1_code()
 	printf("(wT1T2:%d)", 1);
 	fflush(stdout);
 
-	pthread_mutex_lock(&mutex3); //lock the semaphore mutex2
+	// Innested semaphores to induce a deadlock 
+	pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
 	waste_time();
 	waste_time();
 	waste_time();
@@ -369,7 +370,7 @@ void task1_code()
 	}
 
 	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex2
-	pthread_mutex_unlock(&mutex3); //lock the semaphore mutex3
+	pthread_mutex_unlock(&mutex3); //unlock the semaphore mutex3
 
 
 	printf("(wT1T4:%d)", 1);
@@ -448,7 +449,8 @@ void task2_code()
 	// store the Blocking Time related to the critical section z21 in the global variable BT_z21_current
 	BT_z21_current= 1000000000*(time_z21_end.tv_sec - time_z21_beg.tv_sec) + (time_z21_end.tv_nsec-time_z21_beg.tv_nsec);
 
-	pthread_mutex_lock(&mutex2); //lock the semaphore mutex3
+	// Innested semaphores to induce a deadlock 
+	pthread_mutex_lock(&mutex2); //lock the semaphore mutex2
 	waste_time();
 	pthread_mutex_lock(&mutex3); //lock the semaphore mutex3
 	T2T3 = 2; // write on the T2T3 shared global variable
@@ -459,7 +461,7 @@ void task2_code()
 	}
 
 	pthread_mutex_unlock(&mutex3); //lock the semaphore mutex3
-	pthread_mutex_unlock(&mutex2); //lock the semaphore mutex3
+	pthread_mutex_unlock(&mutex2); //unlock the semaphore mutex2
 
 
 	printf("(wT2T3:%d)", 2);
