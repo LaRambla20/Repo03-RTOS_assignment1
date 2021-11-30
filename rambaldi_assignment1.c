@@ -1,5 +1,8 @@
-// compile with: g++ -pthread assignment1.c -o assignment1
-// run with: sudo ./assignment1
+// RTOS FIRST ASSIGNMENT SOLUTION
+// Author: Emanuele Rambaldi (s5265998)
+
+// compile with: g++ -pthread rambaldi_assignment1.c -o rambaldi_assignment1
+// run with: sudo ./rambaldi_assignment1
 
 // The first assignment consists in scheduling four tasks, each of which interacts with one or more 
 // shared global variable. In particular:
@@ -55,17 +58,17 @@
 // To put the priority ceiling protocol for handling semaphores to the test:
 // 1. Induce a deadlock:
 //    * Uncomment:  
-// 		- from line 414 to line 420
-// 		- line 431
-// 		- from line 516 to line 518
-// 		- line 529
+// 		- from line 417 to line 423
+// 		- line 434
+// 		- from line 519 to line 521
+// 		- line 532
 //    * Comment :
-// 		- from line 315 to line 330
+// 		- from line 318 to line 333
 //    * Reduce the INNERLOOP and OUTERLOOP constants to make the task set schedulable
 //
 // 2. Solve the induced deadlock by considering the priority ceiling protocol:
 //    * Uncomment:
-// 		- from line 315 to line 330
+// 		- from line 318 to line 333
 
 #include <pthread.h>
 #include <stdio.h>
